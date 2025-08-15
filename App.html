@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Sales Calculator - Dark Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e2e8f0;
+        }
+        #vanta-bg { position: fixed; width: 100%; height: 100%; top: 0; left: 0; z-index: 0; }
+        .dark-glass-card {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .input-field, .rate-input, select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            outline: none;
+            color: #e2e8f0;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            border-radius: 16px;
+            padding: 16px 32px;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover { transform: translateY(-3px); }
+        .result-card {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%);
+            border-radius: 20px;
+            padding: 24px;
+            margin-top: 24px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .stat-item {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: #c7d2fe; }
+        .profit-highlight { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); }
+        .profit-highlight .stat-value { color: #6ee7b7; }
+    </style>
+</head>
+<body>
+<div id="vanta-bg"></div>
+
+<div class="relative z-10 min-h-screen flex items-center justify-center p-4">
+    <div class="dark-glass-card w-full max-w-4xl p-8">
+        <h1 class="text-3xl font-bold text-center mb-6">Sales Calculator Pro</h1>
+        <div class="grid lg:grid-cols-2 gap-8">
+            <div>
+                <label class="block mb-2 font-semibold">Sales Data</label>
+                <textarea id="sales-list" rows="8" class="input-field resize-none"
+                    placeholder="Paste your sales list here..."></textarea>
+            </div>
+            <div>
+                <label class="block mb-4 font-semibold">Exchange Rates (to USD)</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs mb-1">CAD → USD</label>
+                        <input type="number" id="cad-rate" value="0.73" step="0.001" class="rate-input" oninput="saveRates()">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1">AUD → USD</label>
+                        <input type="number" id="aud-rate" value="0.65" step="0.001" class="rate-input" oninput="saveRates()">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1">GBP → USD</label>
+                        <input type="number" id="gbp-rate" value="1.33" step="0.001" class="rate-input" oninput="saveRates()">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1">EUR → USD</label>
+                        <input type="number" id="eur-rate" value="1.16" step="0.001" class="rate-input" oninput="saveRates()">
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label class="block mb-1">Platform Fee Percentage</label>
+                    <select id="fee-percentage" class="rate-input" onchange="saveFeePercentage()">
+                        <option value="0">0%</option>
+                        <option value="20" selected>20%</option>
+                        <option value="50">50%</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-8">
+            <button onclick="calculateTotal()" class="btn-primary">Calculate Total Revenue</button>
+        </div>
+        <div id="result" class="result-card hidden">
+            <div id="result-content"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+VANTA.NET({
+    el: "#vanta-bg",
+    mouseControls: true,
+    touchControls: true,
+    color: 0x6366f1,
+    backgroundColor: 0x0f0f23
+});
+
+const app = {
+    rates: { US: 1, CA: 0.73, AU: 0.65, GBP: 1.33, EUR: 1.16 },
+    feePercentage: 20
+};
+
+const utils = {
+    formatCurrency: (amount) => new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD'
+    }).format(amount),
+    parseAmount: (text) => {
+        const patterns = [
+            { regex: /\(US\$([\d.,]+)\)/gi, code: "US" },
+            { regex: /\(CA\$([\d.,]+)\)/gi, code: "CA" },
+            { regex: /\(AU\$([\d.,]+)\)/gi, code: "AU" },
+            { regex: /\(€([\d.,]+)\)/gi, code: "EUR" },
+            { regex: /\(£([\d.,]+)\)/gi, code: "GBP" }
+        ];
+        const results = [];
+        patterns.forEach(({ regex, code }) => {
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                results.push({ currency: code, amount: parseFloat(match[1].replace(',', '')) });
+            }
+        });
+        return results;
+    },
+    calculateFee: (amount) => (app.feePercentage / 100) * amount
+};
+
+function saveRates() {
+    app.rates.CA = parseFloat(document.getElementById('cad-rate').value) || 0.73;
+    app.rates.AU = parseFloat(document.getElementById('aud-rate').value) || 0.65;
+    app.rates.GBP = parseFloat(document.getElementById('gbp-rate').value) || 1.33;
+    app.rates.EUR = parseFloat(document.getElementById('eur-rate').value) || 1.16;
+}
+
+function saveFeePercentage() {
+    app.feePercentage = parseFloat(document.getElementById('fee-percentage').value) || 0;
+}
+
+function calculateTotal() {
+    const salesText = document.getElementById('sales-list').value.trim();
+    if (!salesText) return alert("Please enter sales data.");
+    saveRates(); saveFeePercentage();
+
+    const salesData = utils.parseAmount(salesText);
+    let totalUSD = 0, breakdown = {};
+    salesData.forEach(sale => {
+        if (app.rates[sale.currency]) {
+            const usdValue = sale.amount * app.rates[sale.currency];
+            totalUSD += usdValue;
+            if (!breakdown[sale.currency]) breakdown[sale.currency] = { count: 0, total: 0 };
+            breakdown[sale.currency].count++;
+            breakdown[sale.currency].total += sale.amount;
+        }
+    });
+
+    const fee = utils.calculateFee(totalUSD);
+    const net = totalUSD - fee;
+    displayResults(totalUSD, fee, net, breakdown, salesData.length);
+}
+
+function displayResults(totalUSD, fee, netProfit, breakdown, count) {
+    const breakdownHTML = Object.entries(breakdown).map(([cur, data]) => {
+        const sym = cur === 'EUR' ? '€' : (cur === 'GBP' ? '£' : '$');
+        return `<div class="stat-item">
+            <div class="stat-value">${data.count}</div>
+            <div class="stat-label">${cur} Sales</div>
+            <div class="text-sm text-slate-400 mt-1">${sym}${data.total.toFixed(2)}</div>
+        </div>`;
+    }).join("");
+
+    document.getElementById('result-content').innerHTML = `
+        <div class="text-center mb-6">
+            <h3 class="text-2xl font-bold">Calculation Results</h3>
+            <p class="text-slate-400">Processed ${count} sales items</p>
+        </div>
+        <div class="stats-grid mb-6">
+            <div class="stat-item">
+                <div class="stat-value">${utils.formatCurrency(totalUSD)}</div>
+                <div class="stat-label">Gross Revenue</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${utils.formatCurrency(fee)}</div>
+                <div class="stat-label">Platform Fee (${app.feePercentage}%)</div>
+            </div>
+            <div class="stat-item profit-highlight">
+                <div class="stat-value">${utils.formatCurrency(netProfit)}</div>
+                <div class="stat-label">Net Profit</div>
+            </div>
+        </div>
+        ${breakdownHTML ? `<div class="border-t border-slate-600 pt-6">
+            <h4 class="text-lg font-semibold text-center mb-4">Currency Breakdown</h4>
+            <div class="stats-grid">${breakdownHTML}</div>
+        </div>` : ""}
+    `;
+    document.getElementById('result').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
